@@ -40,7 +40,7 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		global $test_site_name, $test_token;
 		Spreedly::configure($test_site_name, $test_token);
 		$url = Spreedly::get_admin_subscriber_url(123);
-		$this->assertEquals($url, "https://spreedly.com/{$test_site_name}/subscribers/123");
+		$this->assertEquals($url, "https://subs.pinpayments.com/{$test_site_name}/subscribers/123");
 	}
 
 	public function testConfigure() {
@@ -49,7 +49,7 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		$this->assertNotNull(Spreedly::$token);
 		$this->assertEquals(Spreedly::$token, $test_token);
 		$this->assertEquals(Spreedly::$site_name, $test_site_name);
-		$this->assertEquals(Spreedly::$base_uri, "https://spreedly.com/api/v4/{$test_site_name}");
+		$this->assertEquals(Spreedly::$base_uri, "https://subs.pinpayments.com/api/v4/{$test_site_name}");
 	}
 
 	public function testCreate() {
@@ -88,7 +88,7 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		global $test_site_name, $test_token;
 		Spreedly::configure($test_site_name, $test_token);
 		$url = Spreedly::get_edit_subscriber_url("XYZ");
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscriber_accounts/XYZ", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscriber_accounts/XYZ", $url);
 	}
 
 	public function testFind() {
@@ -204,7 +204,10 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		// test comping when user has a paid subscription already
 		$sub = SpreedlySubscriber::create(76, null, "baker");
 		$annual = SpreedlySubscriptionPlan::find_by_name("Annual");
-		$invoice = SpreedlyInvoice::create($sub->get_id(), $annual->id, $sub->screen_name, "test@test.com");
+		$invoice = SpreedlyInvoice::create(
+			$sub->get_id(), 
+			$annual->id, // !!!!
+			$sub->screen_name, "test@test.com");
 		$response = $invoice->pay("4222222222222", "visa", "123", "12", date("Y")+1, "Test", "User");
 		$sub = SpreedlySubscriber::find(76);
 		$prev_active_until = $sub->active_until;
@@ -221,31 +224,31 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		Spreedly::configure($test_site_name, $test_token);
 
 		$url = Spreedly::get_subscribe_url(123, 10);
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/subscribe/10", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/subscribe/10", $url);
 
 		$url = Spreedly::get_subscribe_url(123, 10, "test_user");
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/subscribe/10/test_user", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/subscribe/10/test_user", $url);
 
 		$url = Spreedly::get_subscribe_url(123, 10, "test/ user");
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/subscribe/10/test%2F+user", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/subscribe/10/test%2F+user", $url);
 
 		$url = Spreedly::get_subscribe_url(123, 10, array(
 				"return_url"=>"http://www.google.com",
 				"email"=>"test@nospam.com",
 				"token"=>"XYZ"
 			));
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/XYZ/subscribe/10?return_url=http%3A%2F%2Fwww.google.com&email=test%40nospam.com", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/XYZ/subscribe/10?return_url=http%3A%2F%2Fwww.google.com&email=test%40nospam.com", $url);
 
 		$url = Spreedly::get_subscribe_url(123, 10, array(
 				"screen_name"=>"joe",
 				"email"=>"test@nospam.com",
 			));
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/subscribe/10/joe?email=test%40nospam.com", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/subscribe/10/joe?email=test%40nospam.com", $url);
 
 		$url = Spreedly::get_subscribe_url(123, 10, array(
 				"screen_name"=>"joe"
 			));
-		$this->assertEquals("https://spreedly.com/{$test_site_name}/subscribers/123/subscribe/10/joe", $url);
+		$this->assertEquals("https://subs.pinpayments.com/{$test_site_name}/subscribers/123/subscribe/10/joe", $url);
 
 		try {
 			$url = Spreedly::get_subscribe_url(123, 10, array(
@@ -319,7 +322,8 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 
 		$trial_plan = SpreedlySubscriptionPlan::find_by_name("Free Trial");
 		$sub = SpreedlySubscriber::create(75, null, "charlie");
-		$sub->activate_free_trial($trial_plan->id);
+		$sub->activate_free_trial(
+			$trial_plan->id); // !!!!
 		$sub = SpreedlySubscriber::find(75);
 		$this->assertFalse($sub->eligible_for_free_trial);
 		$sub->allow_free_trial();
@@ -335,7 +339,8 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		// create invoice for existing customer
 		$trial_plan = SpreedlySubscriptionPlan::find_by_name("Free Trial");
 		$sub = SpreedlySubscriber::create(75, null, "charlie");
-		$sub->activate_free_trial($trial_plan->id);
+		$sub->activate_free_trial(
+			$trial_plan->id); // !!!!
 		$sub = SpreedlySubscriber::find(75);
 
 		$annual = SpreedlySubscriptionPlan::find_by_name("Annual");
@@ -362,7 +367,8 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		// create invoice for existing customer
 		$trial_plan = SpreedlySubscriptionPlan::find_by_name("Free Trial");
 		$sub = SpreedlySubscriber::create(75, null, "charlie");
-		$sub->activate_free_trial($trial_plan->id);
+		$sub->activate_free_trial(
+			$trial_plan->id); // !!!!
 		$sub = SpreedlySubscriber::find(75);
 
 		$annual = SpreedlySubscriptionPlan::find_by_name("Annual");
@@ -407,7 +413,8 @@ class SpreedlyTest extends PHPUnit_Framework_TestCase {
 		$sub1 = SpreedlySubscriber::create(75, null, "able");
 		$sub1->lifetime_comp("full");
 		$sub2 = SpreedlySubscriber::create(76, null, "baker");
-		$sub2->activate_free_trial($trial_plan->id);
+		$sub2->activate_free_trial(
+			$trial_plan->id); // !!!!
 		$sub3 = SpreedlySubscriber::create(77, null, "charlie");
 		$sub3->activate_free_trial($trial_plan->id);
 

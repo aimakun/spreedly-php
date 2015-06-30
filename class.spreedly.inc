@@ -28,7 +28,7 @@ define("SPREEDLY_VERBOSE", false);
 /**
  * Class: Spreedly
  *
- * Provides a convenient wrapper around the spreedly.com API.  Instead
+ * Provides a convenient wrapper around the subs.pinpayments.com API.  Instead
  * of mucking around with HTTP you can just Spreedly::configure and
  * SpreedlySubscriber::find.  Much of the functionality is hung off
  * the SpreedlySubscriber class.
@@ -46,7 +46,7 @@ class Spreedly {
 	public static function configure($site_name, $token) {
 		self::$site_name = $site_name;
 		self::$token = $token;
-		self::$base_uri = "https://spreedly.com/api/v4/$site_name";
+		self::$base_uri = "https://subs.pinpayments.com/api/v4/$site_name";
 	}
 
 	/**
@@ -56,7 +56,7 @@ class Spreedly {
 	 * token is returned with the subscriber (i.e. by SpreedlySubscriber::find)
 	 */
 	public static function get_edit_subscriber_url($token) {
-		return "https://spreedly.com/".self::$site_name."/subscriber_accounts/$token";
+		return "https://subs.pinpayments.com/".self::$site_name."/subscriber_accounts/$token";
 	}
 
 	/**
@@ -66,7 +66,7 @@ class Spreedly {
 	 * administer a user.
 	 */
 	public static function get_admin_subscriber_url($id) {
-		return "https://spreedly.com/".self::$site_name."/subscribers/$id";
+		return "https://subs.pinpayments.com/".self::$site_name."/subscribers/$id";
 	}
 
 	/**
@@ -89,7 +89,7 @@ class Spreedly {
 	 *        "email" => email to pre-populate into the form
 	 *        "return_url" => url for the "Continue" button (overrides the site default)
 	 *    See the API reference for more details:
-	 *      http://spreedly.com/manual/integration-guide/expose-a-subscribe-link/
+	 *      http://subs.pinpayments.com/manual/integration-guide/expose-a-subscribe-link/
 	 *
 	 * Example:
 	 *  $url = Spreedly::get_subscribe_url(123, 10, array(
@@ -103,7 +103,7 @@ class Spreedly {
 			throw new Exception("plan_id must be an integer");
 		}
 
-		$url = "https://spreedly.com/".self::$site_name."/subscribers/$id";
+		$url = "https://subs.pinpayments.com/".self::$site_name."/subscribers/$id";
 		if (is_string($options)) {
 			// In this case, $options is a string representing the screen name.
 			// For backwards compatibility only.
@@ -147,7 +147,7 @@ class Spreedly {
 	 * last id as a parameter, until nothing is returned.  See the Spreedly
 	 * integration reference for details on how this works:
 	 *
-	 * https://spreedly.com/manual/integration-reference/show-transactions/
+	 * https://subs.pinpayments.com/manual/integration-reference/show-transactions/
 	 */
 	public static function get_transactions($since_id=null) {
 		$since_param = "";
@@ -175,7 +175,7 @@ class Spreedly {
 	 *
 	 * Success Returns: stdClass Object ( [response] => Subscription plan successfully changed. [code] => 200 )
 	 *
-	 * http://spreedly.com/manual/integration-reference/change-subscriber-subscription-plan
+	 * http://subs.pinpayments.com/manual/integration-reference/change-subscriber-subscription-plan
 	 */
 	public static function change_subscription_plan($subscription_id, $subscriber_id) {
 		// Build up subscription plan xml
@@ -205,7 +205,7 @@ class Spreedly {
 		curl_setopt($ch, CURLOPT_USERPWD, self::$token.":X");
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 90);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
 				"Content-Type: text/xml",
 				"Accept: text/xml"
@@ -458,6 +458,49 @@ class SpreedlySubscriber {
 		}
 	}
 
+  /**
+   *
+   * @param type $card_number
+   * @param type $verification_value
+   * @param type $month
+   * @param type $year
+   * @param type $first_name
+   * @param type $last_name
+   * @return type StdClass
+   */
+	public function update_card($card_number=null, $card_type=null, $verification_value =null, $month=null,$year=null,$first_name=null,$last_name=null) {
+		$obj = new StdClass();
+		$obj->subscriber = new StdClass();
+		$obj->subscriber->payment_method = new StdClass();
+    $obj->subscriber->payment_method->credit_card = new StdClass();
+		$obj->subscriber->payment_method->credit_card->number = $card_number;
+		$obj->subscriber->payment_method->credit_card->card_type = $card_type;
+		$obj->subscriber->payment_method->credit_card->verification_value = $verification_value;
+		$obj->subscriber->payment_method->credit_card->month = $month;
+		$obj->subscriber->payment_method->credit_card->year = $year;
+		$obj->subscriber->payment_method->credit_card->first_name = $first_name;
+		$obj->subscriber->payment_method->credit_card->last_name = $last_name;
+    
+		$xml = Spreedly::__to_xml_params($obj);
+		$result = Spreedly::__curl_request("/subscribers/{$this->get_id()}.xml", "put", $xml);    
+    
+		if ($result->code == 404) {
+			throw new SpreedlyException("The specified subscriber could not be found.", $result->code);
+		} else if ($result->code == 422) {
+			return new SpreedlyErrorList(Spreedly::__parse_xml($result->response, "errors", "StdClass"));
+		}else if ($result->code == 403) {
+			throw new SpreedlyException("Gateway Unavailable.",$result->code);
+		} else if ($result->code == 504) {
+			throw new SpreedlyException("Gateway timeout.", $result->code);
+		} else if (preg_match("/^2..$/", $result->code)) {
+      
+			return true;
+      
+		} else {
+			throw new SpreedlyException("Could not update subscriber: {$result->response} ({$result->code})", $result->code);
+		}
+	}
+  
 	/**
 	 * Method: lifetime_comp
 	 *
@@ -604,6 +647,12 @@ class SpreedlySubscriber {
 	 *
 	 * Looks up a subscriber by id.
 	 */
+  
+  /**
+   *
+   * @param type $id
+   * @return SpreedlySubscriber
+   */
 	public static function find($id) {
 		$result = Spreedly::__curl_request("/subscribers/{$id}.xml", "get");
 		if (preg_match("/^2..$/", $result->code)) {
@@ -696,7 +745,7 @@ class SpreedlySubscriptionPlan {
  * NOTE: There are a bunch of special conditions you should consider when
  * displaying an invoice to a user.  Please be sure to read through the
  * Spreedly integration guide before implementing a payment interface:
- * https://spreedly.com/manual/integration-reference/payments-api/displaying-an-invoice/
+ * https://subs.pinpayments.com/manual/integration-reference/payments-api/displaying-an-invoice/
  */
 class SpreedlyInvoice {
 	/**
